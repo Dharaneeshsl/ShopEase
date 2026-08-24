@@ -90,10 +90,6 @@ const Profile = () => {
     }
   };
 
-  const handleEditAddress = (addressId) => {
-    setIsEditingAddress(addressId);
-  };
-
   const handleSaveAddress = async (addressId) => {
     try {
       await dispatch(updateAddress({ id: addressId, isDefault: true })).unwrap();
@@ -405,8 +401,9 @@ const Profile = () => {
                           </div>
                           <div className="flex space-x-2">
                             <button
-                              onClick={() => handleEditAddress(address._id)}
+                              onClick={() => handleSaveAddress(address._id)}
                               className="text-blue-600 hover:text-blue-700"
+                              title={isEditingAddress === address._id ? 'Saving' : 'Set as default'}
                             >
                               <FaEdit />
                             </button>

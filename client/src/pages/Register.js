@@ -278,9 +278,17 @@ const Register = () => {
                   required
                   value={formData.password}
                   onChange={handleInputChange}
-                  className={`form-input pl-3 pr-3 ${errors.password ? 'border-red-500' : ''}`}
+                  className={`form-input pl-3 pr-10 ${errors.password ? 'border-red-500' : ''}`}
                   placeholder="Create a strong password"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((open) => !open)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
               </div>
               
               {/* Password Strength Indicator */}
@@ -334,9 +342,17 @@ const Register = () => {
                   required
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
-                  className={`form-input pl-3 pr-3 ${errors.confirmPassword ? 'border-red-500' : ''}`}
+                  className={`form-input pl-3 pr-10 ${errors.confirmPassword ? 'border-red-500' : ''}`}
                   placeholder="Confirm your password"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((open) => !open)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
+                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
               </div>
               {errors.confirmPassword && (
                 <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
@@ -354,13 +370,9 @@ const Register = () => {
               />
               <label htmlFor="terms" className="ml-2 block text-sm text-gray-900">
                 I agree to the{' '}
-                <a href="#" className="text-blue-600 hover:text-blue-500">
-                  Terms and Conditions
-                </a>{' '}
-                and{' '}
-                <a href="#" className="text-blue-600 hover:text-blue-500">
-                  Privacy Policy
-                </a>
+                <span className="text-blue-600">Terms and Conditions</span>
+                {' '}and{' '}
+                <span className="text-blue-600">Privacy Policy</span>
               </label>
             </div>
 

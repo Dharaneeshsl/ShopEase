@@ -104,11 +104,6 @@ const Login = () => {
     }
   };
 
-  const handleSocialLogin = (provider) => {
-    // In a real implementation, you would redirect to OAuth provider
-    toast.info(`${provider} login will be implemented soon!`);
-  };
-
   const handleForgotPassword = () => {
     navigate('/forgot-password');
   };
@@ -180,9 +175,17 @@ const Login = () => {
                   required
                   value={formData.password}
                   onChange={handleInputChange}
-                  className={`form-input pl-3 pr-3 ${errors.password ? 'border-red-500' : ''}`}
+                  className={`form-input pl-3 pr-10 ${errors.password ? 'border-red-500' : ''}`}
                   placeholder="Enter your password"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((open) => !open)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
               </div>
               {errors.password && (
                 <p className="mt-1 text-sm text-red-600">{errors.password}</p>

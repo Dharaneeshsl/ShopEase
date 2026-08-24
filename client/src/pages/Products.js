@@ -389,9 +389,9 @@ const Products = () => {
                             <FaShoppingCart className="mr-2" />
                             Add to Cart
                           </button>
-                          <button className="btn btn-outline btn-sm">
+                          <Link to={`/products/${product._id}`} className="btn btn-outline btn-sm">
                             View
-                          </button>
+                          </Link>
                         </div>
                       </div>
                     </div>

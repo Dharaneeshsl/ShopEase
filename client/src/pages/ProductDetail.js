@@ -23,7 +23,7 @@ const ProductDetail = () => {
   });
 
   const { currentProduct, loading } = useSelector((state) => state.product);
-  const { isAuthenticated, user } = useSelector((state) => state.auth);
+  const { isAuthenticated } = useSelector((state) => state.auth);
 
   useEffect(() => {
     if (id) {
@@ -148,16 +148,16 @@ const ProductDetail = () => {
           <div className="space-y-4">
             <div className="aspect-w-1 aspect-h-1 w-full">
               <img
-                src={currentProduct.images[selectedImage]?.url || 'https://via.placeholder.com/600x600'}
+                src={getProductImages(currentProduct)[selectedImage]?.url}
                 alt={currentProduct.name}
                 className="w-full h-96 object-cover rounded-lg"
               />
             </div>
             
             {/* Thumbnail Images */}
-            {currentProduct.images.length > 1 && (
+            {getProductImages(currentProduct).length > 1 && (
               <div className="grid grid-cols-4 gap-2">
-                {currentProduct.images.map((image, index) => (
+                {getProductImages(currentProduct).map((image, index) => (
                   <button
                     key={index}
                     onClick={() => setSelectedImage(index)}
