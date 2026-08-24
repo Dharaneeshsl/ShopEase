@@ -1,240 +1,158 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
+const mongoose = require('mongoose');
 const Product = require('../models/Product');
+const Cart = require('../models/Cart');
 const { protect } = require('../middleware/auth');
+const asyncHandler = require('../utils/asyncHandler');
 
 const router = express.Router();
 
-// In-memory cart storage (in production, use Redis or database)
-const carts = new Map();
+const getOrCreateCart = async (userId) => {
+  let cart = await Cart.findOne({ user: userId });
+  if (!cart) cart = await Cart.create({ user: userId, items: [] });
+  return cart;
+};
 
-// @desc    Get user cart
-// @route   GET /api/cart
-// @access  Private
-router.get('/', protect, (req, res) => {
-  try {
-    const userCart = carts.get(req.user.id) || [];
-    
-    res.json({
-      success: true,
-      cart: userCart,
-      totalItems: userCart.reduce((sum, item) => sum + item.quantity, 0),
-      totalPrice: userCart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
-    });
-  } catch (error) {
-    console.error('Get cart error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
+const respondCart = (res, cart, message) => {
+  const totals = cart.totals();
+  res.json({
+    success: true,
+    message,
+    ...totals,
+  });
+};
+
+router.get(
+  '/',
+  protect,
+  asyncHandler(async (req, res) => {
+    const cart = await getOrCreateCart(req.user.id);
+    respondCart(res, cart);
+  })
+);
+
+const addItemHandler = asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, message: errors.array()[0].msg, errors: errors.array() });
+  }
+
+  const productId = req.body.productId || req.body.product;
+  const quantity = parseInt(req.body.quantity, 10) || 1;
+
+  if (!mongoose.Types.ObjectId.isValid(productId)) {
+    return res.status(400).json({ success: false, message: 'Valid product ID is required' });
+  }
+
+  const product = await Product.findById(productId);
+  if (!product) {
+    return res.status(404).json({ success: false, message: 'Product not found' });
+  }
+
+  const cart = await getOrCreateCart(req.user.id);
+  const existing = cart.items.find((item) => item.product.toString() === productId);
+  const nextQty = (existing ? existing.quantity : 0) + quantity;
+
+  if (product.stock < nextQty) {
+    return res.status(400).json({ success: false, message: 'Insufficient stock' });
+  }
+
+  const image = product.images?.[0]?.url || product.image;
+  if (existing) {
+    existing.quantity = nextQty;
+    existing.price = product.price;
+    existing.stock = product.stock;
+    existing.name = product.name;
+    existing.image = image;
+  } else {
+    cart.items.push({
+      product: productId,
+      name: product.name,
+      price: product.price,
+      image,
+      quantity,
+      stock: product.stock,
     });
   }
+
+  await cart.save();
+  respondCart(res, cart, 'Item added to cart successfully');
 });
 
-// @desc    Add item to cart
-// @route   POST /api/cart
-// @access  Private
-router.post('/', protect, [
-  body('productId').isMongoId().withMessage('Valid product ID is required'),
-  body('quantity').isInt({ min: 1 }).withMessage('Quantity must be at least 1')
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        errors: errors.array()
-      });
-    }
+router.post('/', protect, [body('quantity').optional().isInt({ min: 1 })], addItemHandler);
+router.post('/add', protect, [body('quantity').optional().isInt({ min: 1 })], addItemHandler);
 
-    const { productId, quantity } = req.body;
+const updateItemHandler = asyncHandler(async (req, res) => {
+  const productId = req.params.productId;
+  const quantity = parseInt(req.body.quantity, 10);
 
-    // Check if product exists and has enough stock
-    const product = await Product.findById(productId);
-    if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: 'Product not found'
-      });
-    }
-
-    if (product.stock < quantity) {
-      return res.status(400).json({
-        success: false,
-        message: 'Insufficient stock'
-      });
-    }
-
-    // Get user's current cart
-    const userCart = carts.get(req.user.id) || [];
-
-    // Check if product already in cart
-    const existingItemIndex = userCart.findIndex(item => item.productId === productId);
-
-    if (existingItemIndex > -1) {
-      // Update quantity if product already exists
-      const newQuantity = userCart[existingItemIndex].quantity + quantity;
-      
-      if (product.stock < newQuantity) {
-        return res.status(400).json({
-          success: false,
-          message: 'Insufficient stock for requested quantity'
-        });
-      }
-      
-      userCart[existingItemIndex].quantity = newQuantity;
-      userCart[existingItemIndex].totalPrice = product.price * newQuantity;
-    } else {
-      // Add new item to cart
-      userCart.push({
-        productId,
-        name: product.name,
-        price: product.price,
-        image: product.images[0]?.url || 'https://via.placeholder.com/150',
-        quantity,
-        totalPrice: product.price * quantity,
-        stock: product.stock
-      });
-    }
-
-    // Update cart in memory
-    carts.set(req.user.id, userCart);
-
-    res.json({
-      success: true,
-      message: 'Item added to cart successfully',
-      cart: userCart,
-      totalItems: userCart.reduce((sum, item) => sum + item.quantity, 0),
-      totalPrice: userCart.reduce((sum, item) => sum + item.totalPrice, 0)
-    });
-  } catch (error) {
-    console.error('Add to cart error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
+  if (!quantity || quantity < 1) {
+    return res.status(400).json({ success: false, message: 'Quantity must be at least 1' });
   }
-});
 
-// @desc    Update cart item quantity
-// @route   PUT /api/cart/:productId
-// @access  Private
-router.put('/:productId', protect, [
-  body('quantity').isInt({ min: 1 }).withMessage('Quantity must be at least 1')
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        errors: errors.array()
-      });
-    }
-
-    const { productId } = req.params;
-    const { quantity } = req.body;
-
-    // Check if product exists and has enough stock
-    const product = await Product.findById(productId);
-    if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: 'Product not found'
-      });
-    }
-
-    if (product.stock < quantity) {
-      return res.status(400).json({
-        success: false,
-        message: 'Insufficient stock'
-      });
-    }
-
-    // Get user's current cart
-    const userCart = carts.get(req.user.id) || [];
-    const itemIndex = userCart.findIndex(item => item.productId === productId);
-
-    if (itemIndex === -1) {
-      return res.status(404).json({
-        success: false,
-        message: 'Item not found in cart'
-      });
-    }
-
-    // Update quantity
-    userCart[itemIndex].quantity = quantity;
-    userCart[itemIndex].totalPrice = product.price * quantity;
-
-    // Update cart in memory
-    carts.set(req.user.id, userCart);
-
-    res.json({
-      success: true,
-      message: 'Cart updated successfully',
-      cart: userCart,
-      totalItems: userCart.reduce((sum, item) => sum + item.quantity, 0),
-      totalPrice: userCart.reduce((sum, item) => sum + item.totalPrice, 0)
-    });
-  } catch (error) {
-    console.error('Update cart error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
+  const product = await Product.findById(productId);
+  if (!product) {
+    return res.status(404).json({ success: false, message: 'Product not found' });
   }
-});
-
-// @desc    Remove item from cart
-// @route   DELETE /api/cart/:productId
-// @access  Private
-router.delete('/:productId', protect, async (req, res) => {
-  try {
-    const { productId } = req.params;
-
-    // Get user's current cart
-    const userCart = carts.get(req.user.id) || [];
-    const filteredCart = userCart.filter(item => item.productId !== productId);
-
-    // Update cart in memory
-    carts.set(req.user.id, filteredCart);
-
-    res.json({
-      success: true,
-      message: 'Item removed from cart successfully',
-      cart: filteredCart,
-      totalItems: filteredCart.reduce((sum, item) => sum + item.quantity, 0),
-      totalPrice: filteredCart.reduce((sum, item) => sum + item.totalPrice, 0)
-    });
-  } catch (error) {
-    console.error('Remove from cart error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
+  if (product.stock < quantity) {
+    return res.status(400).json({ success: false, message: 'Insufficient stock' });
   }
-});
 
-// @desc    Clear cart
-// @route   DELETE /api/cart
-// @access  Private
-router.delete('/', protect, (req, res) => {
-  try {
-    // Clear user's cart
-    carts.delete(req.user.id);
-
-    res.json({
-      success: true,
-      message: 'Cart cleared successfully',
-      cart: [],
-      totalItems: 0,
-      totalPrice: 0
-    });
-  } catch (error) {
-    console.error('Clear cart error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
+  const cart = await getOrCreateCart(req.user.id);
+  const item = cart.items.find((i) => i.product.toString() === productId);
+  if (!item) {
+    return res.status(404).json({ success: false, message: 'Item not found in cart' });
   }
+
+  item.quantity = quantity;
+  item.price = product.price;
+  item.stock = product.stock;
+  await cart.save();
+  respondCart(res, cart, 'Cart updated successfully');
 });
 
-module.exports = router; 
+router.put('/:productId', protect, updateItemHandler);
+router.put('/update/:productId', protect, updateItemHandler);
+
+const removeItemHandler = asyncHandler(async (req, res) => {
+  const cart = await getOrCreateCart(req.user.id);
+  cart.items = cart.items.filter((item) => item.product.toString() !== req.params.productId);
+  await cart.save();
+  respondCart(res, cart, 'Item removed from cart successfully');
+});
+
+router.delete('/remove/:productId', protect, removeItemHandler);
+router.delete('/clear', protect, asyncHandler(async (req, res) => {
+  const cart = await getOrCreateCart(req.user.id);
+  cart.items = [];
+  await cart.save();
+  respondCart(res, cart, 'Cart cleared successfully');
+}));
+
+router.delete(
+  '/:productId',
+  protect,
+  asyncHandler(async (req, res) => {
+    if (req.params.productId === 'clear') {
+      const cart = await getOrCreateCart(req.user.id);
+      cart.items = [];
+      await cart.save();
+      return respondCart(res, cart, 'Cart cleared successfully');
+    }
+    return removeItemHandler(req, res);
+  })
+);
+
+router.delete(
+  '/',
+  protect,
+  asyncHandler(async (req, res) => {
+    const cart = await getOrCreateCart(req.user.id);
+    cart.items = [];
+    await cart.save();
+    respondCart(res, cart, 'Cart cleared successfully');
+  })
+);
+
+module.exports = router;

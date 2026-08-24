@@ -2,220 +2,139 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const { protect } = require('../middleware/auth');
+const { upload, uploadToCloud } = require('../middleware/upload');
+const asyncHandler = require('../utils/asyncHandler');
 
 const router = express.Router();
 
-// @desc    Get user profile
-// @route   GET /api/users/profile
-// @access  Private
-router.get('/profile', protect, async (req, res) => {
-  try {
+router.get(
+  '/profile',
+  protect,
+  asyncHandler(async (req, res) => {
     const user = await User.findById(req.user.id);
-    
-    res.json({
-      success: true,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        avatar: user.avatar,
-        addresses: user.addresses,
-        phone: user.phone,
-        createdAt: user.createdAt
-      }
-    });
-  } catch (error) {
-    console.error('Get profile error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
-  }
-});
+    res.json({ success: true, user: user.toSafeObject() });
+  })
+);
 
-// @desc    Update user profile
-// @route   PUT /api/users/profile
-// @access  Private
-router.put('/profile', protect, [
-  body('name').optional().trim().isLength({ min: 2 }).withMessage('Name must be at least 2 characters long'),
-  body('phone').optional().trim().isMobilePhone().withMessage('Please enter a valid phone number')
-], async (req, res) => {
-  try {
+router.put(
+  '/profile',
+  protect,
+  upload.single('avatar'),
+  [
+    body('name').optional().trim().isLength({ min: 2 }).withMessage('Name must be at least 2 characters long'),
+  ],
+  asyncHandler(async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        errors: errors.array()
+      return res.status(400).json({ success: false, message: errors.array()[0].msg, errors: errors.array() });
+    }
+
+    const updates = {};
+    if (req.body.name) updates.name = req.body.name;
+    if (req.body.phone !== undefined) updates.phone = req.body.phone;
+    if (req.body.addresses) updates.addresses = req.body.addresses;
+
+    if (req.file) {
+      updates.avatar = await uploadToCloud(req.file.path, 'shopease/avatars');
+    }
+
+    const user = await User.findByIdAndUpdate(req.user.id, updates, {
+      new: true,
+      runValidators: true,
+    });
+
+    res.json({ success: true, user: user.toSafeObject(), message: 'Profile updated successfully' });
+  })
+);
+
+router.post(
+  '/addresses',
+  protect,
+  [
+    body('city').trim().notEmpty().withMessage('City is required'),
+    body('state').trim().notEmpty().withMessage('State is required'),
+    body('zipCode').trim().notEmpty().withMessage('Zip code is required'),
+    body('country').optional().trim(),
+  ],
+  asyncHandler(async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, message: errors.array()[0].msg, errors: errors.array() });
+    }
+
+    const street = req.body.street || req.body.address;
+    if (!street) {
+      return res.status(400).json({ success: false, message: 'Street address is required' });
+    }
+
+    const user = await User.findById(req.user.id);
+    const isDefault = req.body.isDefault || user.addresses.length === 0;
+    if (isDefault) {
+      user.addresses.forEach((addr) => {
+        addr.isDefault = false;
       });
     }
 
-    const { name, phone, addresses } = req.body;
-    
-    const user = await User.findByIdAndUpdate(
-      req.user.id,
-      { name, phone, addresses },
-      { new: true, runValidators: true }
-    );
-
-    res.json({
-      success: true,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        avatar: user.avatar,
-        addresses: user.addresses,
-        phone: user.phone
-      }
-    });
-  } catch (error) {
-    console.error('Update profile error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
-  }
-});
-
-// @desc    Add address
-// @route   POST /api/users/addresses
-// @access  Private
-router.post('/addresses', protect, [
-  body('street').trim().notEmpty().withMessage('Street address is required'),
-  body('city').trim().notEmpty().withMessage('City is required'),
-  body('state').trim().notEmpty().withMessage('State is required'),
-  body('zipCode').trim().notEmpty().withMessage('Zip code is required'),
-  body('country').trim().notEmpty().withMessage('Country is required')
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        errors: errors.array()
-      });
-    }
-
-    const { street, city, state, zipCode, country, isDefault } = req.body;
-    
-    const user = await User.findById(req.user.id);
-    
-    // If this is the first address or isDefault is true, set all others to false
-    if (isDefault || user.addresses.length === 0) {
-      user.addresses.forEach(addr => addr.isDefault = false);
-    }
-    
     user.addresses.push({
+      type: req.body.type || 'home',
       street,
-      city,
-      state,
-      zipCode,
-      country,
-      isDefault: isDefault || user.addresses.length === 0
+      address: street,
+      city: req.body.city,
+      state: req.body.state,
+      zipCode: req.body.zipCode,
+      country: req.body.country || 'United States',
+      phone: req.body.phone,
+      isDefault,
     });
-    
+
     await user.save();
+    res.status(201).json({ success: true, addresses: user.addresses, user: user.toSafeObject() });
+  })
+);
 
-    res.json({
-      success: true,
-      addresses: user.addresses
-    });
-  } catch (error) {
-    console.error('Add address error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
-  }
-});
-
-// @desc    Update address
-// @route   PUT /api/users/addresses/:addressId
-// @access  Private
-router.put('/addresses/:addressId', protect, [
-  body('street').optional().trim().notEmpty().withMessage('Street address is required'),
-  body('city').optional().trim().notEmpty().withMessage('City is required'),
-  body('state').optional().trim().notEmpty().withMessage('State is required'),
-  body('zipCode').optional().trim().notEmpty().withMessage('Zip code is required'),
-  body('country').optional().trim().notEmpty().withMessage('Country is required')
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        errors: errors.array()
-      });
-    }
-
-    const { addressId } = req.params;
-    const updateData = req.body;
-    
+router.put(
+  '/addresses/:addressId',
+  protect,
+  asyncHandler(async (req, res) => {
     const user = await User.findById(req.user.id);
-    const addressIndex = user.addresses.findIndex(addr => addr._id.toString() === addressId);
-    
-    if (addressIndex === -1) {
-      return res.status(404).json({
-        success: false,
-        message: 'Address not found'
+    const address = user.addresses.id(req.params.addressId);
+    if (!address) {
+      return res.status(404).json({ success: false, message: 'Address not found' });
+    }
+
+    const street = req.body.street || req.body.address;
+    if (street) {
+      address.street = street;
+      address.address = street;
+    }
+    ['type', 'city', 'state', 'zipCode', 'country', 'phone', 'isDefault'].forEach((field) => {
+      if (req.body[field] !== undefined) address[field] = req.body[field];
+    });
+
+    if (address.isDefault) {
+      user.addresses.forEach((addr) => {
+        if (addr._id.toString() !== address._id.toString()) addr.isDefault = false;
       });
     }
-    
-    // If setting as default, unset all others
-    if (updateData.isDefault) {
-      user.addresses.forEach(addr => addr.isDefault = false);
-    }
-    
-    // Update the address
-    Object.assign(user.addresses[addressIndex], updateData);
+
     await user.save();
+    res.json({ success: true, addresses: user.addresses, user: user.toSafeObject() });
+  })
+);
 
-    res.json({
-      success: true,
-      addresses: user.addresses
-    });
-  } catch (error) {
-    console.error('Update address error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
-  }
-});
-
-// @desc    Delete address
-// @route   DELETE /api/users/addresses/:addressId
-// @access  Private
-router.delete('/addresses/:addressId', protect, async (req, res) => {
-  try {
-    const { addressId } = req.params;
-    
+router.delete(
+  '/addresses/:addressId',
+  protect,
+  asyncHandler(async (req, res) => {
     const user = await User.findById(req.user.id);
-    const addressIndex = user.addresses.findIndex(addr => addr._id.toString() === addressId);
-    
-    if (addressIndex === -1) {
-      return res.status(404).json({
-        success: false,
-        message: 'Address not found'
-      });
+    const address = user.addresses.id(req.params.addressId);
+    if (!address) {
+      return res.status(404).json({ success: false, message: 'Address not found' });
     }
-    
-    user.addresses.splice(addressIndex, 1);
+    address.deleteOne();
     await user.save();
+    res.json({ success: true, addresses: user.addresses, user: user.toSafeObject() });
+  })
+);
 
-    res.json({
-      success: true,
-      addresses: user.addresses
-    });
-  } catch (error) {
-    console.error('Delete address error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
-  }
-});
-
-module.exports = router; 
+module.exports = router;

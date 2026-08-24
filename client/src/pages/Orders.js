@@ -2,133 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Link } from 'react-router-dom';
 import { FaBox, FaTruck, FaCheckCircle, FaTimesCircle, FaEye, FaCalendar, FaDollarSign } from 'react-icons/fa';
+import { fetchOrders as fetchOrdersAction } from '../store/slices/orderSlice';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { toast } from 'react-toastify';
 
 const Orders = () => {
   const dispatch = useDispatch();
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
 
   const { isAuthenticated } = useSelector((state) => state.auth);
+  const { orders, loading } = useSelector((state) => state.order);
 
   useEffect(() => {
     if (isAuthenticated) {
-      fetchOrders();
+      dispatch(fetchOrdersAction()).unwrap().catch(() => toast.error('Failed to fetch orders'));
     }
-  }, [isAuthenticated]);
-
-  const fetchOrders = async () => {
-    try {
-      setLoading(true);
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock orders data
-      const mockOrders = [
-        {
-          _id: '1',
-          orderNumber: 'ORD-2024-001',
-          items: [
-            {
-              product: {
-                _id: '1',
-                name: 'Wireless Bluetooth Headphones',
-                image: 'https://via.placeholder.com/80x80',
-                price: 99.99
-              },
-              quantity: 1,
-              price: 99.99
-            },
-            {
-              product: {
-                _id: '2',
-                name: 'Smartphone Case',
-                image: 'https://via.placeholder.com/80x80',
-                price: 19.99
-              },
-              quantity: 2,
-              price: 39.98
-            }
-          ],
-          totalAmount: 139.97,
-          status: 'delivered',
-          paymentStatus: 'paid',
-          shippingAddress: {
-            address: '123 Main St',
-            city: 'New York',
-            state: 'NY',
-            zipCode: '10001',
-            country: 'United States'
-          },
-          createdAt: '2024-01-15T10:30:00Z',
-          deliveredAt: '2024-01-18T14:20:00Z'
-        },
-        {
-          _id: '2',
-          orderNumber: 'ORD-2024-002',
-          items: [
-            {
-              product: {
-                _id: '3',
-                name: 'Laptop Stand',
-                image: 'https://via.placeholder.com/80x80',
-                price: 49.99
-              },
-              quantity: 1,
-              price: 49.99
-            }
-          ],
-          totalAmount: 49.99,
-          status: 'shipped',
-          paymentStatus: 'paid',
-          shippingAddress: {
-            address: '456 Oak Ave',
-            city: 'Los Angeles',
-            state: 'CA',
-            zipCode: '90210',
-            country: 'United States'
-          },
-          createdAt: '2024-01-20T09:15:00Z',
-          shippedAt: '2024-01-22T11:45:00Z'
-        },
-        {
-          _id: '3',
-          orderNumber: 'ORD-2024-003',
-          items: [
-            {
-              product: {
-                _id: '4',
-                name: 'Coffee Maker',
-                image: 'https://via.placeholder.com/80x80',
-                price: 89.99
-              },
-              quantity: 1,
-              price: 89.99
-            }
-          ],
-          totalAmount: 89.99,
-          status: 'processing',
-          paymentStatus: 'paid',
-          shippingAddress: {
-            address: '789 Pine St',
-            city: 'Chicago',
-            state: 'IL',
-            zipCode: '60601',
-            country: 'United States'
-          },
-          createdAt: '2024-01-25T16:20:00Z'
-        }
-      ];
-      
-      setOrders(mockOrders);
-    } catch (error) {
-      toast.error('Failed to fetch orders');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [isAuthenticated, dispatch]);
 
   const getStatusIcon = (status) => {
     switch (status) {
@@ -175,10 +64,20 @@ const Orders = () => {
     }
   };
 
-  const filteredOrders = orders.filter(order => {
+  const normalizeStatus = (order) =>
+    (order.orderStatus || order.status || 'processing').toLowerCase();
+
+  const filteredOrders = orders.filter((order) => {
     if (filter === 'all') return true;
-    return order.status === filter;
+    return normalizeStatus(order) === filter;
   });
+
+  const orderItems = (order) => order.orderItems || order.items || [];
+  const orderTotal = (order) => Number(order.totalPrice ?? order.totalAmount ?? 0);
+  const shipping = (order) => order.shippingInfo || order.shippingAddress || {};
+  const itemImage = (item) => item.image || item.product?.images?.[0]?.url || item.product?.image;
+  const itemName = (item) => item.name || item.product?.name;
+  const itemPrice = (item) => Number(item.price ?? item.product?.price ?? 0);
 
   if (!isAuthenticated) {
     return (
@@ -261,9 +160,9 @@ const Orders = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
                       <div className="flex items-center">
-                        {getStatusIcon(order.status)}
-                        <span className={`ml-2 px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(order.status)}`}>
-                          {getStatusText(order.status)}
+                        {getStatusIcon(normalizeStatus(order))}
+                        <span className={`ml-2 px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(normalizeStatus(order))}`}>
+                          {getStatusText(normalizeStatus(order))}
                         </span>
                       </div>
                       <div>
@@ -274,8 +173,8 @@ const Orders = () => {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold text-gray-900">${order.totalAmount.toFixed(2)}</p>
-                      <p className="text-sm text-gray-600 capitalize">{order.paymentStatus}</p>
+                      <p className="font-semibold text-gray-900">${orderTotal(order).toFixed(2)}</p>
+                      <p className="text-sm text-gray-600 capitalize">{order.paymentInfo?.status || order.paymentStatus || order.paymentMethod}</p>
                     </div>
                   </div>
                 </div>
@@ -283,19 +182,19 @@ const Orders = () => {
                 {/* Order Items */}
                 <div className="p-6">
                   <div className="space-y-4">
-                    {order.items.map((item, index) => (
+                    {orderItems(order).map((item, index) => (
                       <div key={index} className="flex items-center space-x-4">
                         <img
-                          src={item.product.image}
-                          alt={item.product.name}
+                          src={itemImage(item)}
+                          alt={itemName(item)}
                           className="w-16 h-16 object-cover rounded-lg"
                         />
                         <div className="flex-1">
-                          <h4 className="font-medium text-gray-900">{item.product.name}</h4>
+                          <h4 className="font-medium text-gray-900">{itemName(item)}</h4>
                           <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
                         </div>
                         <div className="text-right">
-                          <p className="font-semibold text-gray-900">${item.price.toFixed(2)}</p>
+                          <p className="font-semibold text-gray-900">${itemPrice(item).toFixed(2)}</p>
                         </div>
                       </div>
                     ))}
@@ -307,11 +206,11 @@ const Orders = () => {
                       <div>
                         <h4 className="font-semibold text-gray-900 mb-2">Shipping Address</h4>
                         <div className="text-sm text-gray-600">
-                          <p>{order.shippingAddress.address}</p>
+                          <p>{shipping(order).address}</p>
                           <p>
-                            {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.zipCode}
+                            {shipping(order).city}, {shipping(order).state} {shipping(order).zipCode}
                           </p>
-                          <p>{order.shippingAddress.country}</p>
+                          <p>{shipping(order).country}</p>
                         </div>
                       </div>
                       <div>
@@ -354,7 +253,7 @@ const Orders = () => {
                         <FaEye className="mr-2" />
                         View Details
                       </Link>
-                      {order.status === 'delivered' && (
+                      {normalizeStatus(order) === 'delivered' && (
                         <button className="btn btn-outline btn-sm">
                           Write Review
                         </button>
@@ -363,7 +262,7 @@ const Orders = () => {
                     <div className="flex items-center space-x-2">
                       <FaDollarSign className="text-gray-400" />
                       <span className="font-semibold text-gray-900">
-                        Total: ${order.totalAmount.toFixed(2)}
+                        Total: ${orderTotal(order).toFixed(2)}
                       </span>
                     </div>
                   </div>

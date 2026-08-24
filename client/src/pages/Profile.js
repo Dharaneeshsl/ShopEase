@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { FaUser, FaEnvelope, FaPhone, FaMapMarkerAlt, FaEdit, FaSave, FaTimes, FaPlus, FaTrash } from 'react-icons/fa';
-import { getCurrentUser, updateProfile } from '../store/slices/authSlice';
+import { getCurrentUser, updateProfile, addAddress, updateAddress, deleteAddress } from '../store/slices/authSlice';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { toast } from 'react-toastify';
 
@@ -70,8 +70,10 @@ const Profile = () => {
 
   const handleAddAddress = async () => {
     try {
-      // Here you would dispatch an action to add the address
-      // await dispatch(addAddress(newAddress)).unwrap();
+      await dispatch(addAddress({
+        ...newAddress,
+        street: newAddress.address,
+      })).unwrap();
       setShowAddAddress(false);
       setNewAddress({
         type: 'home',
@@ -84,7 +86,7 @@ const Profile = () => {
       });
       toast.success('Address added successfully!');
     } catch (error) {
-      toast.error('Failed to add address');
+      toast.error(error || 'Failed to add address');
     }
   };
 
@@ -94,23 +96,21 @@ const Profile = () => {
 
   const handleSaveAddress = async (addressId) => {
     try {
-      // Here you would dispatch an action to update the address
-      // await dispatch(updateAddress({ id: addressId, data: updatedAddress })).unwrap();
+      await dispatch(updateAddress({ id: addressId, isDefault: true })).unwrap();
       setIsEditingAddress(null);
       toast.success('Address updated successfully!');
     } catch (error) {
-      toast.error('Failed to update address');
+      toast.error(error || 'Failed to update address');
     }
   };
 
   const handleDeleteAddress = async (addressId) => {
     if (window.confirm('Are you sure you want to delete this address?')) {
       try {
-        // Here you would dispatch an action to delete the address
-        // await dispatch(deleteAddress(addressId)).unwrap();
+        await dispatch(deleteAddress(addressId)).unwrap();
         toast.success('Address deleted successfully!');
       } catch (error) {
-        toast.error('Failed to delete address');
+        toast.error(error || 'Failed to delete address');
       }
     }
   };
@@ -397,7 +397,7 @@ const Profile = () => {
                                 </span>
                               )}
                             </div>
-                            <p className="text-gray-900 font-medium">{address.address}</p>
+                            <p className="text-gray-900 font-medium">{address.address || address.street}</p>
                             <p className="text-gray-600">
                               {address.city}, {address.state} {address.zipCode}
                             </p>

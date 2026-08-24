@@ -4,8 +4,10 @@ import { useSelector, useDispatch } from 'react-redux';
 import { FaStar, FaShoppingCart, FaHeart, FaShare, FaTruck, FaShieldAlt, FaUndo } from 'react-icons/fa';
 import { fetchProductById, addProductReview } from '../store/slices/productSlice';
 import { addToCart } from '../store/slices/cartSlice';
+import { addToWishlist } from '../store/slices/wishlistSlice';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { toast } from 'react-toastify';
+import { getProductImages } from '../utils/productHelpers';
 
 const ProductDetail = () => {
   const { id } = useParams();
@@ -29,18 +31,36 @@ const ProductDetail = () => {
     }
   }, [dispatch, id]);
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!isAuthenticated) {
       toast.error('Please login to add items to cart');
       navigate('/login');
       return;
     }
 
-    dispatch(addToCart({
-      productId: currentProduct._id,
-      quantity: quantity
-    }));
-    toast.success('Item added to cart successfully!');
+    try {
+      await dispatch(addToCart({
+        productId: currentProduct._id,
+        quantity: quantity
+      })).unwrap();
+      toast.success('Item added to cart successfully!');
+    } catch (err) {
+      toast.error(err || 'Could not add to cart');
+    }
+  };
+
+  const handleWishlist = async () => {
+    if (!isAuthenticated) {
+      toast.error('Please login to save items');
+      navigate('/login');
+      return;
+    }
+    try {
+      await dispatch(addToWishlist(currentProduct._id)).unwrap();
+      toast.success('Saved to wishlist');
+    } catch (err) {
+      toast.error(err || 'Could not add to wishlist');
+    }
   };
 
   const handleReviewSubmit = (e) => {
@@ -273,7 +293,7 @@ const ProductDetail = () => {
                     <FaShoppingCart className="mr-2" />
                     Add to Cart
                   </button>
-                  <button className="btn btn-outline btn-lg">
+                  <button onClick={handleWishlist} className="btn btn-outline btn-lg">
                     <FaHeart className="mr-2" />
                     Wishlist
                   </button>
