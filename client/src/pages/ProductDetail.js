@@ -4,8 +4,10 @@ import { useSelector, useDispatch } from 'react-redux';
 import { FaStar, FaShoppingCart, FaHeart, FaShare, FaTruck, FaShieldAlt, FaUndo } from 'react-icons/fa';
 import { fetchProductById, addProductReview } from '../store/slices/productSlice';
 import { addToCart } from '../store/slices/cartSlice';
+import { addToWishlist } from '../store/slices/wishlistSlice';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { toast } from 'react-toastify';
+import { getProductImages } from '../utils/productHelpers';
 
 const ProductDetail = () => {
   const { id } = useParams();
@@ -21,7 +23,7 @@ const ProductDetail = () => {
   });
 
   const { currentProduct, loading } = useSelector((state) => state.product);
-  const { isAuthenticated, user } = useSelector((state) => state.auth);
+  const { isAuthenticated } = useSelector((state) => state.auth);
 
   useEffect(() => {
     if (id) {
@@ -29,18 +31,36 @@ const ProductDetail = () => {
     }
   }, [dispatch, id]);
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!isAuthenticated) {
       toast.error('Please login to add items to cart');
       navigate('/login');
       return;
     }
 
-    dispatch(addToCart({
-      productId: currentProduct._id,
-      quantity: quantity
-    }));
-    toast.success('Item added to cart successfully!');
+    try {
+      await dispatch(addToCart({
+        productId: currentProduct._id,
+        quantity: quantity
+      })).unwrap();
+      toast.success('Item added to cart successfully!');
+    } catch (err) {
+      toast.error(err || 'Could not add to cart');
+    }
+  };
+
+  const handleWishlist = async () => {
+    if (!isAuthenticated) {
+      toast.error('Please login to save items');
+      navigate('/login');
+      return;
+    }
+    try {
+      await dispatch(addToWishlist(currentProduct._id)).unwrap();
+      toast.success('Saved to wishlist');
+    } catch (err) {
+      toast.error(err || 'Could not add to wishlist');
+    }
   };
 
   const handleReviewSubmit = (e) => {
@@ -128,16 +148,16 @@ const ProductDetail = () => {
           <div className="space-y-4">
             <div className="aspect-w-1 aspect-h-1 w-full">
               <img
-                src={currentProduct.images[selectedImage]?.url || 'https://via.placeholder.com/600x600'}
+                src={getProductImages(currentProduct)[selectedImage]?.url}
                 alt={currentProduct.name}
                 className="w-full h-96 object-cover rounded-lg"
               />
             </div>
             
             {/* Thumbnail Images */}
-            {currentProduct.images.length > 1 && (
+            {getProductImages(currentProduct).length > 1 && (
               <div className="grid grid-cols-4 gap-2">
-                {currentProduct.images.map((image, index) => (
+                {getProductImages(currentProduct).map((image, index) => (
                   <button
                     key={index}
                     onClick={() => setSelectedImage(index)}
@@ -273,7 +293,7 @@ const ProductDetail = () => {
                     <FaShoppingCart className="mr-2" />
                     Add to Cart
                   </button>
-                  <button className="btn btn-outline btn-lg">
+                  <button onClick={handleWishlist} className="btn btn-outline btn-lg">
                     <FaHeart className="mr-2" />
                     Wishlist
                   </button>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
-import { FaEye, FaEyeSlash, FaUser, FaEnvelope, FaLock, FaGoogle, FaFacebook } from 'react-icons/fa';
+import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { register, clearError } from '../store/slices/authSlice';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { toast } from 'react-toastify';
@@ -188,11 +188,6 @@ const Register = () => {
     }
   };
 
-  const handleSocialRegister = (provider) => {
-    // In a real implementation, you would redirect to OAuth provider
-    toast.info(`${provider} registration will be implemented soon!`);
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -283,9 +278,17 @@ const Register = () => {
                   required
                   value={formData.password}
                   onChange={handleInputChange}
-                  className={`form-input pl-3 pr-3 ${errors.password ? 'border-red-500' : ''}`}
+                  className={`form-input pl-3 pr-10 ${errors.password ? 'border-red-500' : ''}`}
                   placeholder="Create a strong password"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((open) => !open)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
               </div>
               
               {/* Password Strength Indicator */}
@@ -339,9 +342,17 @@ const Register = () => {
                   required
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
-                  className={`form-input pl-3 pr-3 ${errors.confirmPassword ? 'border-red-500' : ''}`}
+                  className={`form-input pl-3 pr-10 ${errors.confirmPassword ? 'border-red-500' : ''}`}
                   placeholder="Confirm your password"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((open) => !open)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
+                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
               </div>
               {errors.confirmPassword && (
                 <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
@@ -359,13 +370,9 @@ const Register = () => {
               />
               <label htmlFor="terms" className="ml-2 block text-sm text-gray-900">
                 I agree to the{' '}
-                <a href="#" className="text-blue-600 hover:text-blue-500">
-                  Terms and Conditions
-                </a>{' '}
-                and{' '}
-                <a href="#" className="text-blue-600 hover:text-blue-500">
-                  Privacy Policy
-                </a>
+                <span className="text-blue-600">Terms and Conditions</span>
+                {' '}and{' '}
+                <span className="text-blue-600">Privacy Policy</span>
               </label>
             </div>
 
@@ -388,38 +395,6 @@ const Register = () => {
             </div>
           </form>
 
-          {/* Divider */}
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Or continue with</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Social Register Buttons */}
-          <div className="mt-6 grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => handleSocialRegister('Google')}
-              className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
-            >
-              <FaGoogle className="h-5 w-5 text-red-500" />
-              <span className="ml-2">Google</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleSocialRegister('Facebook')}
-              className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
-            >
-              <FaFacebook className="h-5 w-5 text-blue-600" />
-              <span className="ml-2">Facebook</span>
-            </button>
-          </div>
         </div>
 
         {/* Footer */}

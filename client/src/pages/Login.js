@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { FaEye, FaEyeSlash, FaEnvelope, FaLock, FaGoogle, FaFacebook } from 'react-icons/fa';
+import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { login, clearError } from '../store/slices/authSlice';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { toast } from 'react-toastify';
@@ -104,14 +104,8 @@ const Login = () => {
     }
   };
 
-  const handleSocialLogin = (provider) => {
-    // In a real implementation, you would redirect to OAuth provider
-    toast.info(`${provider} login will be implemented soon!`);
-  };
-
   const handleForgotPassword = () => {
-    // In a real implementation, you would navigate to forgot password page
-    toast.info('Forgot password functionality will be implemented soon!');
+    navigate('/forgot-password');
   };
 
   if (loading) {
@@ -181,9 +175,17 @@ const Login = () => {
                   required
                   value={formData.password}
                   onChange={handleInputChange}
-                  className={`form-input pl-3 pr-3 ${errors.password ? 'border-red-500' : ''}`}
+                  className={`form-input pl-3 pr-10 ${errors.password ? 'border-red-500' : ''}`}
                   placeholder="Enter your password"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((open) => !open)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
               </div>
               {errors.password && (
                 <p className="mt-1 text-sm text-red-600">{errors.password}</p>
@@ -234,38 +236,6 @@ const Login = () => {
             </div>
           </form>
 
-          {/* Divider */}
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Or continue with</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Social Login Buttons */}
-          <div className="mt-6 grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => handleSocialLogin('Google')}
-              className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
-            >
-              <FaGoogle className="h-5 w-5 text-red-500" />
-              <span className="ml-2">Google</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleSocialLogin('Facebook')}
-              className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
-            >
-              <FaFacebook className="h-5 w-5 text-blue-600" />
-              <span className="ml-2">Facebook</span>
-            </button>
-          </div>
         </div>
 
         {/* Footer */}

@@ -1,147 +1,116 @@
 const mongoose = require('mongoose');
 
-const productSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: [true, 'Product name is required'],
-    trim: true,
-    maxlength: [100, 'Product name cannot exceed 100 characters']
+const reviewSchema = new mongoose.Schema(
+  {
+    user: { type: mongoose.Schema.ObjectId, ref: 'User', required: true },
+    name: { type: String, required: true },
+    rating: { type: Number, required: true, min: 1, max: 5 },
+    comment: { type: String, required: true },
   },
-  description: {
-    type: String,
-    required: [true, 'Product description is required'],
-    maxlength: [2000, 'Description cannot exceed 2000 characters']
-  },
-  price: {
-    type: Number,
-    required: [true, 'Product price is required'],
-    min: [0, 'Price cannot be negative']
-  },
-  originalPrice: {
-    type: Number,
-    min: [0, 'Original price cannot be negative']
-  },
-  discount: {
-    type: Number,
-    min: [0, 'Discount cannot be negative'],
-    max: [100, 'Discount cannot exceed 100%'],
-    default: 0
-  },
-  category: {
-    type: String,
-    required: [true, 'Product category is required'],
-    enum: ['Electronics', 'Clothing', 'Books', 'Home & Garden', 'Sports', 'Beauty', 'Toys', 'Other']
-  },
-  subcategory: {
-    type: String,
-    trim: true
-  },
-  brand: {
-    type: String,
-    trim: true
-  },
-  images: [{
-    public_id: {
-      type: String,
-      required: true
-    },
-    url: {
-      type: String,
-      required: true
-    }
-  }],
-  stock: {
-    type: Number,
-    required: [true, 'Stock quantity is required'],
-    min: [0, 'Stock cannot be negative'],
-    default: 0
-  },
-  sku: {
-    type: String,
-    unique: true,
-    trim: true
-  },
-  weight: {
-    type: Number,
-    min: [0, 'Weight cannot be negative']
-  },
-  dimensions: {
-    length: Number,
-    width: Number,
-    height: Number
-  },
-  ratings: {
-    type: Number,
-    default: 0,
-    min: [0, 'Rating cannot be negative'],
-    max: [5, 'Rating cannot exceed 5']
-  },
-  numOfReviews: {
-    type: Number,
-    default: 0
-  },
-  reviews: [{
-    user: {
-      type: mongoose.Schema.ObjectId,
-      ref: 'User',
-      required: true
-    },
+  { timestamps: true }
+);
+
+const productSchema = new mongoose.Schema(
+  {
     name: {
       type: String,
-      required: true
+      required: [true, 'Product name is required'],
+      trim: true,
+      maxlength: [140, 'Product name cannot exceed 140 characters'],
     },
-    rating: {
-      type: Number,
-      required: true,
-      min: 1,
-      max: 5
-    },
-    comment: {
+    description: {
       type: String,
-      required: true
+      required: [true, 'Product description is required'],
+      maxlength: [4000, 'Description cannot exceed 4000 characters'],
     },
-    createdAt: {
-      type: Date,
-      default: Date.now
-    }
-  }],
-  tags: [String],
-  featured: {
-    type: Boolean,
-    default: false
+    price: {
+      type: Number,
+      required: [true, 'Product price is required'],
+      min: [0, 'Price cannot be negative'],
+    },
+    originalPrice: { type: Number, min: 0 },
+    discount: { type: Number, min: 0, max: 100, default: 0 },
+    category: {
+      type: String,
+      required: [true, 'Product category is required'],
+      enum: ['Electronics', 'Clothing', 'Books', 'Home & Garden', 'Sports', 'Beauty', 'Toys', 'Other'],
+    },
+    subcategory: { type: String, trim: true },
+    brand: { type: String, trim: true },
+    images: [
+      {
+        public_id: { type: String, default: 'seed' },
+        url: { type: String, required: true },
+      },
+    ],
+    stock: {
+      type: Number,
+      required: [true, 'Stock quantity is required'],
+      min: [0, 'Stock cannot be negative'],
+      default: 0,
+    },
+    sku: { type: String, unique: true, sparse: true, trim: true },
+    weight: { type: Number, min: 0 },
+    dimensions: {
+      length: Number,
+      width: Number,
+      height: Number,
+    },
+    ratings: { type: Number, default: 0, min: 0, max: 5 },
+    numOfReviews: { type: Number, default: 0 },
+    reviews: [reviewSchema],
+    tags: [String],
+    features: [String],
+    specifications: { type: Map, of: String },
+    featured: { type: Boolean, default: false },
+    inStock: { type: Boolean, default: true },
+    seller: { type: mongoose.Schema.ObjectId, ref: 'User' },
   },
-  inStock: {
-    type: Boolean,
-    default: true
-  },
-  seller: {
-    type: mongoose.Schema.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   }
+);
+
+productSchema.virtual('image').get(function () {
+  if (this.images && this.images.length > 0) return this.images[0].url;
+  return 'https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=600';
 });
 
-// Calculate average rating
-productSchema.methods.getAverageRating = function() {
-  if (this.reviews.length === 0) {
+productSchema.virtual('rating').get(function () {
+  return this.ratings;
+});
+
+productSchema.virtual('numReviews').get(function () {
+  return this.numOfReviews;
+});
+
+productSchema.virtual('oldPrice').get(function () {
+  return this.originalPrice;
+});
+
+productSchema.index({ name: 'text', description: 'text', brand: 'text', tags: 'text' });
+productSchema.index({ category: 1, price: 1 });
+productSchema.index({ featured: 1, ratings: -1 });
+
+productSchema.methods.recalculateRating = function () {
+  if (!this.reviews.length) {
     this.ratings = 0;
     this.numOfReviews = 0;
   } else {
-    this.ratings = this.reviews.reduce((acc, item) => item.rating + acc, 0) / this.reviews.length;
     this.numOfReviews = this.reviews.length;
+    this.ratings =
+      Math.round(
+        (this.reviews.reduce((acc, item) => acc + item.rating, 0) / this.reviews.length) * 10
+      ) / 10;
   }
-  this.save();
 };
 
-// Update stock when order is placed
-productSchema.methods.updateStock = function(quantity) {
-  this.stock = this.stock - quantity;
+productSchema.methods.updateStock = async function (quantity) {
+  this.stock = Math.max(0, this.stock - quantity);
   this.inStock = this.stock > 0;
-  this.save();
+  await this.save();
 };
 
-module.exports = mongoose.model('Product', productSchema); 
+module.exports = mongoose.model('Product', productSchema);

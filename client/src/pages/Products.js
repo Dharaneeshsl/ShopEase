@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { FaStar, FaShoppingCart, FaHeart, FaFilter, FaSort, FaSearch, FaTimes } from 'react-icons/fa';
 import { fetchProducts } from '../store/slices/productSlice';
 import { addToCart } from '../store/slices/cartSlice';
-import LoadingSpinner from '../components/LoadingSpinner';
+import { addToWishlist } from '../store/slices/wishlistSlice';
+import LoadingSpinner from '../components/common/LoadingSpinner';
 import { toast } from 'react-toastify';
+import { getProductImage, getProductRating, getProductReviewCount } from '../utils/productHelpers';
 
 const Products = () => {
   const dispatch = useDispatch();
   const { products, loading, error } = useSelector((state) => state.product);
+  const { isAuthenticated } = useSelector((state) => state.auth);
   const [searchParams, setSearchParams] = useSearchParams();
   
   // Filter states
@@ -28,8 +31,7 @@ const Products = () => {
   const [itemsPerPage] = useState(12);
 
   const categories = [
-    'Electronics', 'Fashion', 'Home & Garden', 'Sports', 'Books', 'Toys',
-    'Beauty', 'Automotive', 'Health', 'Baby', 'Pet Supplies', 'Office'
+    'Electronics', 'Clothing', 'Home & Garden', 'Sports', 'Books', 'Toys', 'Beauty', 'Other'
   ];
 
   const sortOptions = [
@@ -42,7 +44,7 @@ const Products = () => {
   ];
 
   useEffect(() => {
-    dispatch(fetchProducts());
+    dispatch(fetchProducts({ limit: 60 }));
   }, [dispatch]);
 
   useEffect(() => {
@@ -116,19 +118,30 @@ const Products = () => {
   const endIndex = startIndex + itemsPerPage;
   const currentProducts = sortedProducts.slice(startIndex, endIndex);
 
-  const handleAddToCart = (product) => {
-    dispatch(addToCart({
-      productId: product._id,
-      name: product.name,
-      price: product.price,
-      image: product.image,
-      quantity: 1
-    }));
-    toast.success(`${product.name} added to cart!`);
+  const handleAddToCart = async (product) => {
+    if (!isAuthenticated) {
+      toast.error('Please login to add items to cart');
+      return;
+    }
+    try {
+      await dispatch(addToCart({ productId: product._id, quantity: 1 })).unwrap();
+      toast.success(`${product.name} added to cart!`);
+    } catch (err) {
+      toast.error(err || 'Could not add to cart');
+    }
   };
 
-  const handleAddToWishlist = (product) => {
-    toast.info('Wishlist feature coming soon!');
+  const handleAddToWishlist = async (product) => {
+    if (!isAuthenticated) {
+      toast.error('Please login to save items');
+      return;
+    }
+    try {
+      await dispatch(addToWishlist(product._id)).unwrap();
+      toast.success('Saved to wishlist');
+    } catch (err) {
+      toast.error(err || 'Could not add to wishlist');
+    }
   };
 
   const clearFilters = () => {
@@ -152,7 +165,7 @@ const Products = () => {
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Error Loading Products</h2>
           <p className="text-gray-600 mb-4">{error}</p>
           <button 
-            onClick={() => dispatch(fetchProducts())}
+            onClick={() => dispatch(fetchProducts({ limit: 60 }))}
             className="btn btn-primary"
           >
             Try Again
@@ -321,7 +334,7 @@ const Products = () => {
                     <div key={product._id} className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow">
                       <div className="relative">
                         <img
-                          src={product.image || 'https://via.placeholder.com/300x200?text=Product'}
+                          src={getProductImage(product)}
                           alt={product.name}
                           className="w-full h-48 object-cover"
                         />
@@ -347,7 +360,7 @@ const Products = () => {
                               <FaStar
                                 key={i}
                                 className={`w-4 h-4 ${
-                                  i < Math.floor(product.rating || 0)
+                                  i < Math.floor(getProductRating(product))
                                     ? 'text-yellow-400'
                                     : 'text-gray-300'
                                 }`}
@@ -355,16 +368,16 @@ const Products = () => {
                             ))}
                           </div>
                           <span className="text-sm text-gray-600 ml-2">
-                            ({product.numReviews || 0})
+                            ({getProductReviewCount(product)})
                           </span>
                         </div>
                         <div className="flex items-center justify-between mb-4">
                           <span className="text-xl font-bold text-gray-900">
                             ${product.price}
                           </span>
-                          {product.oldPrice && (
+                          {(product.oldPrice || product.originalPrice) && (
                             <span className="text-sm text-gray-500 line-through">
-                              ${product.oldPrice}
+                              ${product.oldPrice || product.originalPrice}
                             </span>
                           )}
                         </div>
@@ -376,9 +389,9 @@ const Products = () => {
                             <FaShoppingCart className="mr-2" />
                             Add to Cart
                           </button>
-                          <button className="btn btn-outline btn-sm">
+                          <Link to={`/products/${product._id}`} className="btn btn-outline btn-sm">
                             View
-                          </button>
+                          </Link>
                         </div>
                       </div>
                     </div>

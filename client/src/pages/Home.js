@@ -4,8 +4,10 @@ import { useSelector, useDispatch } from 'react-redux';
 import { FaStar, FaShoppingCart, FaHeart, FaArrowRight, FaTruck, FaShieldAlt, FaUndo, FaHeadset } from 'react-icons/fa';
 import { fetchProducts } from '../store/slices/productSlice';
 import { addToCart } from '../store/slices/cartSlice';
-import LoadingSpinner from '../components/LoadingSpinner';
+import { addToWishlist } from '../store/slices/wishlistSlice';
+import LoadingSpinner from '../components/common/LoadingSpinner';
 import { toast } from 'react-toastify';
+import { getProductImage, getProductRating, getProductReviewCount } from '../utils/productHelpers';
 
 const Home = () => {
   const dispatch = useDispatch();
@@ -14,7 +16,7 @@ const Home = () => {
   const [featuredProducts, setFeaturedProducts] = useState([]);
   const [categories] = useState([
     { id: 1, name: 'Electronics', icon: '📱', color: 'bg-blue-500' },
-    { id: 2, name: 'Fashion', icon: '👕', color: 'bg-pink-500' },
+    { id: 2, name: 'Clothing', icon: '👕', color: 'bg-pink-500' },
     { id: 3, name: 'Home & Garden', icon: '🏠', color: 'bg-green-500' },
     { id: 4, name: 'Sports', icon: '⚽', color: 'bg-orange-500' },
     { id: 5, name: 'Books', icon: '📚', color: 'bg-purple-500' },
@@ -22,7 +24,7 @@ const Home = () => {
   ]);
 
   useEffect(() => {
-    dispatch(fetchProducts());
+    dispatch(fetchProducts({ limit: 48, featured: 'true' }));
   }, [dispatch]);
 
   useEffect(() => {
@@ -32,19 +34,30 @@ const Home = () => {
     }
   }, [products]);
 
-  const handleAddToCart = (product) => {
-    dispatch(addToCart({
-      productId: product._id,
-      name: product.name,
-      price: product.price,
-      image: product.image,
-      quantity: 1
-    }));
-    toast.success(`${product.name} added to cart!`);
+  const handleAddToCart = async (product) => {
+    if (!user) {
+      toast.error('Please login to add items to cart');
+      return;
+    }
+    try {
+      await dispatch(addToCart({ productId: product._id, quantity: 1 })).unwrap();
+      toast.success(`${product.name} added to cart!`);
+    } catch (err) {
+      toast.error(err || 'Could not add to cart');
+    }
   };
 
-  const handleAddToWishlist = (product) => {
-    toast.info('Wishlist feature coming soon!');
+  const handleAddToWishlist = async (product) => {
+    if (!user) {
+      toast.error('Please login to save items');
+      return;
+    }
+    try {
+      await dispatch(addToWishlist(product._id)).unwrap();
+      toast.success('Saved to wishlist');
+    } catch (err) {
+      toast.error(err || 'Could not add to wishlist');
+    }
   };
 
   if (loading) {
@@ -58,7 +71,7 @@ const Home = () => {
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Error Loading Products</h2>
           <p className="text-gray-600 mb-4">{error}</p>
           <button 
-            onClick={() => dispatch(fetchProducts())}
+            onClick={() => dispatch(fetchProducts({ limit: 48 }))}
             className="btn btn-primary"
           >
             Try Again
@@ -90,7 +103,7 @@ const Home = () => {
                   <FaArrowRight className="ml-2" />
                 </Link>
                 <Link 
-                  to="/products?category=electronics" 
+                  to="/products?category=Electronics" 
                   className="btn btn-outline btn-lg border-white text-white hover:bg-white hover:text-blue-600"
                 >
                   Browse Electronics
@@ -161,7 +174,7 @@ const Home = () => {
             {categories.map((category) => (
               <Link
                 key={category.id}
-                to={`/products?category=${category.name.toLowerCase()}`}
+                to={`/products?category=${encodeURIComponent(category.name)}`}
                 className="group"
               >
                 <div className="bg-white rounded-lg shadow-sm p-6 text-center hover:shadow-md transition-shadow">
@@ -192,7 +205,7 @@ const Home = () => {
               <div key={product._id} className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow">
                 <div className="relative">
                   <img
-                    src={product.image || 'https://via.placeholder.com/300x200?text=Product'}
+                    src={getProductImage(product)}
                     alt={product.name}
                     className="w-full h-48 object-cover"
                   />
@@ -213,7 +226,7 @@ const Home = () => {
                         <FaStar
                           key={i}
                           className={`w-4 h-4 ${
-                            i < Math.floor(product.rating || 0)
+                            i < Math.floor(getProductRating(product))
                               ? 'text-yellow-400'
                               : 'text-gray-300'
                           }`}
@@ -221,16 +234,16 @@ const Home = () => {
                       ))}
                     </div>
                     <span className="text-sm text-gray-600 ml-2">
-                      ({product.numReviews || 0})
+                      ({getProductReviewCount(product)})
                     </span>
                   </div>
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-xl font-bold text-gray-900">
                       ${product.price}
                     </span>
-                    {product.oldPrice && (
+                    {(product.oldPrice || product.originalPrice) && (
                       <span className="text-sm text-gray-500 line-through">
-                        ${product.oldPrice}
+                        ${product.oldPrice || product.originalPrice}
                       </span>
                     )}
                   </div>
@@ -271,90 +284,47 @@ const Home = () => {
           <p className="text-blue-100 mb-8 max-w-2xl mx-auto">
             Subscribe to our newsletter and get the latest updates on new products, special offers, and exclusive deals.
           </p>
-          <div className="max-w-md mx-auto flex gap-4">
-            <input
-              type="email"
-              placeholder="Enter your email"
-              className="flex-1 px-4 py-3 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-300"
-            />
-            <button className="btn btn-primary">
-              Subscribe
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials Section */}
-      <section className="py-16">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">What Our Customers Say</h2>
-            <p className="text-gray-600 max-w-2xl mx-auto">
-              Don't just take our word for it - hear from our satisfied customers
-            </p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="bg-white p-6 rounded-lg shadow-sm">
-              <div className="flex items-center mb-4">
-                <div className="flex text-yellow-400">
-                  {[...Array(5)].map((_, i) => (
-                    <FaStar key={i} className="w-4 h-4" />
-                  ))}
-                </div>
-              </div>
-              <p className="text-gray-600 mb-4">
-                "Amazing shopping experience! Fast delivery and great customer service. Will definitely shop here again."
-              </p>
-              <div className="flex items-center">
-                <div className="w-10 h-10 bg-gray-300 rounded-full mr-3"></div>
-                <div>
-                  <p className="font-semibold text-gray-900">Sarah Johnson</p>
-                  <p className="text-sm text-gray-600">Verified Customer</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow-sm">
-              <div className="flex items-center mb-4">
-                <div className="flex text-yellow-400">
-                  {[...Array(5)].map((_, i) => (
-                    <FaStar key={i} className="w-4 h-4" />
-                  ))}
-                </div>
-              </div>
-              <p className="text-gray-600 mb-4">
-                "The quality of products exceeded my expectations. Great prices and excellent selection."
-              </p>
-              <div className="flex items-center">
-                <div className="w-10 h-10 bg-gray-300 rounded-full mr-3"></div>
-                <div>
-                  <p className="font-semibold text-gray-900">Mike Chen</p>
-                  <p className="text-sm text-gray-600">Verified Customer</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow-sm">
-              <div className="flex items-center mb-4">
-                <div className="flex text-yellow-400">
-                  {[...Array(5)].map((_, i) => (
-                    <FaStar key={i} className="w-4 h-4" />
-                  ))}
-                </div>
-              </div>
-              <p className="text-gray-600 mb-4">
-                "Best online store I've ever used. Secure payments and hassle-free returns."
-              </p>
-              <div className="flex items-center">
-                <div className="w-10 h-10 bg-gray-300 rounded-full mr-3"></div>
-                <div>
-                  <p className="font-semibold text-gray-900">Emily Davis</p>
-                  <p className="text-sm text-gray-600">Verified Customer</p>
-                </div>
-              </div>
-            </div>
-          </div>
+          <NewsletterForm />
         </div>
       </section>
     </div>
+  );
+};
+
+const NewsletterForm = () => {
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const subscribe = async (e) => {
+    e.preventDefault();
+    if (!email) return;
+    setBusy(true);
+    try {
+      const api = (await import('../services/api')).default;
+      await api.post('/newsletter/subscribe', { email });
+      toast.success('You are subscribed!');
+      setEmail('');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not subscribe');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form onSubmit={subscribe} className="max-w-md mx-auto flex gap-4">
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="Enter your email"
+        required
+        className="flex-1 px-4 py-3 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-300"
+      />
+      <button type="submit" disabled={busy} className="btn btn-primary">
+        {busy ? 'Saving...' : 'Subscribe'}
+      </button>
+    </form>
   );
 };
 
