@@ -6,7 +6,32 @@
 - Docker Desktop installed
 - Docker Compose installed
 
-### 1. Build and Run All Services
+### 1. Create the Environment File
+
+The compose file intentionally ships **no default credentials** — both the
+MongoDB container and the backend load their secrets from a local, gitignored
+`.env` file via `env_file`. Copy the template and set strong values for
+`MONGO_INITDB_ROOT_PASSWORD`, `JWT_SECRET`, and the Docker `MONGODB_URI`:
+
+```bash
+cp env.example .env
+# edit .env and set MONGO_INITDB_ROOT_PASSWORD, JWT_SECRET, and MONGODB_URI
+```
+
+Inside the Compose network the backend reaches MongoDB through the `mongodb`
+service name, so set:
+
+```dotenv
+MONGO_INITDB_ROOT_USERNAME=admin
+MONGO_INITDB_ROOT_PASSWORD=<your-strong-password>
+MONGO_INITDB_DATABASE=ecommerce
+MONGODB_URI=mongodb://admin:<your-strong-password>@mongodb:27017/ecommerce?authSource=admin
+JWT_SECRET=<your-long-random-secret>
+```
+
+Docker Compose reads `.env` automatically, so no extra flags are needed.
+
+### 2. Build and Run All Services
 
 ```bash
 # Build and start all services (MongoDB, Backend, Frontend)
@@ -16,13 +41,13 @@ docker-compose up --build
 docker-compose up -d --build
 ```
 
-### 2. Access the Application
+### 3. Access the Application
 
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://localhost:5000
 - **MongoDB**: localhost:27017
 
-### 3. Seed the Database
+### 4. Seed the Database
 
 ```bash
 # Enter the backend container
@@ -35,7 +60,7 @@ node scripts/seed.js
 exit
 ```
 
-### 4. Stop Services
+### 5. Stop Services
 
 ```bash
 # Stop all services
@@ -52,10 +77,8 @@ docker-compose down -v
 ### 🗄️ MongoDB
 - **Image**: mongo:7.0
 - **Port**: 27017
-- **Credentials**: 
-  - Username: `admin`
-  - Password: `admin123`
-- **Database**: `ecommerce`
+- **Credentials**: taken from `.env` (`MONGO_INITDB_ROOT_USERNAME` / `MONGO_INITDB_ROOT_PASSWORD`)
+- **Database**: `ecommerce` (from `MONGO_DB`)
 - **Volumes**: Persistent data storage
 
 ### 🔧 Backend (Node.js/Express)
@@ -107,24 +130,37 @@ docker-compose ps
 # Backend
 docker-compose exec backend sh
 
-# MongoDB
-docker-compose exec mongodb mongosh -u admin -p admin123
+# MongoDB (uses MONGO_INITDB_ROOT_USERNAME / MONGO_INITDB_ROOT_PASSWORD from .env)
+docker-compose exec mongodb mongosh -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD"
 ```
 
 ---
 
 ## Environment Variables
 
-Update `docker-compose.yml` to customize:
+Set values in your local `.env` file (see `env.example`). Docker Compose
+injects that file into the `mongodb` and `backend` services via `env_file`, so
+no credentials are committed in `docker-compose.yml`. The MongoDB container
+reads `MONGO_INITDB_ROOT_USERNAME` / `MONGO_INITDB_ROOT_PASSWORD` /
+`MONGO_INITDB_DATABASE`; the backend reads `MONGODB_URI`, `JWT_SECRET`, and
+payment keys from the same file.
 
-### Backend Environment
+### Backend Environment (loaded from `.env`)
+```dotenv
+# .env
+MONGO_INITDB_ROOT_USERNAME=admin
+MONGO_INITDB_ROOT_PASSWORD=<your-strong-password>
+MONGO_INITDB_DATABASE=ecommerce
+MONGODB_URI=mongodb://admin:<your-strong-password>@mongodb:27017/ecommerce?authSource=admin
+JWT_SECRET=<your-long-random-secret>
+```
+
+The backend container also sets these non-secret values directly in
+`docker-compose.yml`:
 ```yaml
 environment:
   NODE_ENV: production
   PORT: 5000
-  MONGODB_URI: mongodb://admin:admin123@mongodb:27017/ecommerce?authSource=admin
-  JWT_SECRET: your-super-secret-jwt-key-change-in-production
-  JWT_EXPIRE: 30d
   CLIENT_URL: http://localhost:3000
 ```
 
