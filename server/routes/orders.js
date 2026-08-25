@@ -1,14 +1,22 @@
 const express = require('express');
-const { body, validationResult } = require('express-validator');
 const Order = require('../models/Order');
 const Product = require('../models/Product');
 const Cart = require('../models/Cart');
 const Coupon = require('../models/Coupon');
+const Payment = require('../models/Payment');
 const { protect, authorizeRoles } = require('../middleware/auth');
 const asyncHandler = require('../utils/asyncHandler');
+const { calculateOrderTotals } = require('../utils/pricing');
 const { sendEmail, orderConfirmationEmail, orderStatusEmail } = require('../utils/sendEmail');
 
 const router = express.Router();
+
+// Give reserved stock back to the catalogue when an order is cancelled.
+const releaseReservedStock = async (orderItems) => {
+  for (const item of orderItems) {
+    await Product.findByIdAndUpdate(item.product, { $inc: { stock: item.quantity }, inStock: true });
+  }
+};
 
 const normalizeShipping = (raw = {}) => ({
   firstName: raw.firstName || '',
@@ -298,14 +306,23 @@ router.put(
       return res.status(400).json({ success: false, message: `Cannot cancel a ${order.orderStatus.toLowerCase()} order` });
     }
 
+    if (req.body.ifUnpaid && order.paidAt) {
+      return res.status(409).json({
+        success: false,
+        message: 'Order has already been paid; use the refund flow instead',
+      });
+    }
+
     order.orderStatus = 'Cancelled';
     order.cancelledAt = new Date();
     order.cancelReason = req.body.reason || 'Cancelled by customer';
     await order.save();
 
-    for (const item of order.orderItems) {
-      await Product.findByIdAndUpdate(item.product, { $inc: { stock: item.quantity }, inStock: true });
-    }
+    await releaseReservedStock(order.orderItems);
+    await Payment.updateMany(
+      { order: order._id, status: { $in: ['pending', 'processing'] } },
+      { status: 'cancelled' }
+    );
 
     res.json({ success: true, order, message: 'Order cancelled' });
   })
