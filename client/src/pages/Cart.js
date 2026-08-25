@@ -5,6 +5,7 @@ import { FaTrash, FaArrowLeft, FaShoppingCart, FaLock } from 'react-icons/fa';
 import { fetchCart, updateCartItem, removeFromCart, clearCart } from '../store/slices/cartSlice';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { toast } from 'react-toastify';
+import { calculateOrderTotals } from '../utils/pricing';
 
 const Cart = () => {
   const dispatch = useDispatch();
@@ -44,6 +45,9 @@ const Cart = () => {
     }
     navigate('/checkout');
   };
+
+  const { itemsPrice: subtotal, taxPrice: tax, shippingPrice: shipping, totalPrice: cartTotal } =
+    calculateOrderTotals({ itemsPrice: totalPrice });
 
   if (!isAuthenticated) {
     return (
@@ -190,21 +194,21 @@ const Cart = () => {
                 <div className="space-y-3 mb-6">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Subtotal ({totalItems} items)</span>
-                    <span className="font-semibold">${totalPrice.toFixed(2)}</span>
+                    <span className="font-semibold">${subtotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Shipping</span>
-                    <span className="font-semibold text-green-600">Free</span>
+                    <span className="font-semibold text-green-600">{shipping === 0 ? 'Free' : `$${shipping.toFixed(2)}`}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Tax</span>
-                    <span className="font-semibold">${(totalPrice * 0.1).toFixed(2)}</span>
+                    <span className="font-semibold">${tax.toFixed(2)}</span>
                   </div>
                   <div className="border-t border-gray-200 pt-3">
                     <div className="flex justify-between">
                       <span className="text-lg font-semibold text-gray-900">Total</span>
                       <span className="text-lg font-bold text-gray-900">
-                        ${(totalPrice * 1.1).toFixed(2)}
+                        ${cartTotal.toFixed(2)}
                       </span>
                     </div>
                   </div>

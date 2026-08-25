@@ -44,7 +44,6 @@ const paymentService = {
       const { data } = await api.post('/payments/paypal/capture-payment', {
         paypalOrderId,
         shopOrderId,
-        token: paypalOrderId,
       });
       return data;
     } catch (error) {

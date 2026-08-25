@@ -6,10 +6,10 @@ services:
     image: mongo:7.0
     container_name: ecommerce-mongodb
     restart: unless-stopped
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: admin123
-      MONGO_INITDB_DATABASE: ecommerce
+    # Credentials come from the local, gitignored .env file
+    # (MONGO_INITDB_ROOT_USERNAME / MONGO_INITDB_ROOT_PASSWORD / MONGO_INITDB_DATABASE).
+    env_file:
+      - .env
     ports:
       - "27017:27017"
     volumes:
@@ -30,12 +30,13 @@ services:
       dockerfile: Dockerfile
     container_name: ecommerce-backend
     restart: unless-stopped
+    # MONGODB_URI, JWT_SECRET and payment keys are supplied at runtime from
+    # the local, gitignored .env file (never committed or baked into the image).
+    env_file:
+      - .env
     environment:
       NODE_ENV: production
       PORT: 5000
-      MONGODB_URI: mongodb://admin:admin123@mongodb:27017/ecommerce?authSource=admin
-      JWT_SECRET: your-super-secret-jwt-key-change-in-production
-      JWT_EXPIRE: 30d
       CLIENT_URL: http://localhost:3000
     ports:
       - "5000:5000"

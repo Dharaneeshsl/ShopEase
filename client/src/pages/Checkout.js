@@ -9,6 +9,7 @@ import paymentService from '../services/paymentService';
 import { getCurrentUser } from '../store/slices/authSlice';
 import { clearCart, fetchCart } from '../store/slices/cartSlice';
 import { createOrder } from '../store/slices/orderSlice';
+import { calculateOrderTotals } from '../utils/pricing';
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -90,10 +91,13 @@ const Checkout = () => {
     }
   };
 
-  const subtotal = totalPrice;
-  const tax = Math.max(0, subtotal - couponDiscount) * 0.1;
-  const shipping = subtotal - couponDiscount >= 100 ? 0 : 10;
-  const total = Math.max(0, subtotal + tax + shipping - couponDiscount);
+  const {
+    itemsPrice: subtotal,
+    taxPrice: tax,
+    shippingPrice: shipping,
+    totalPrice: total,
+    discount,
+  } = calculateOrderTotals({ itemsPrice: totalPrice, discount: couponDiscount });
 
   const handlePlaceOrder = async () => {
     if (paymentMethod === 'stripe' && !gatewayConfig.stripeEnabled) {
@@ -341,8 +345,8 @@ const Checkout = () => {
                 <div className="flex justify-between"><span className="text-gray-600">Subtotal ({totalItems} items)</span><span className="font-semibold">${subtotal.toFixed(2)}</span></div>
                 <div className="flex justify-between"><span className="text-gray-600">Shipping</span><span className="font-semibold text-green-600">{shipping === 0 ? 'Free' : `$${shipping.toFixed(2)}`}</span></div>
                 <div className="flex justify-between"><span className="text-gray-600">Tax</span><span className="font-semibold">${tax.toFixed(2)}</span></div>
-                {couponDiscount > 0 && (
-                  <div className="flex justify-between text-green-600"><span>Discount</span><span className="font-semibold">-${couponDiscount.toFixed(2)}</span></div>
+                {discount > 0 && (
+                  <div className="flex justify-between text-green-600"><span>Discount</span><span className="font-semibold">-${discount.toFixed(2)}</span></div>
                 )}
                 <div className="flex gap-2 pt-2">
                   <input value={couponCode} onChange={(e) => setCouponCode(e.target.value)} placeholder="Coupon code" className="form-input flex-1" />
